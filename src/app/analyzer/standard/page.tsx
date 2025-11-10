@@ -250,11 +250,12 @@ export default function StandardAnalyzerPage() {
   };
 
   const getAlternativeProviders = () => {
-    const alternatives: AIProvider[] = [];
-    if (aiProvider !== "gemini") alternatives.push("gemini");
-    if (aiProvider !== "groq") alternatives.push("groq");
-    return alternatives;}
-  };
+  const alternatives: AIProvider[] = [];
+  if (aiProvider !== "gemini") alternatives.push("gemini");
+  if (aiProvider !== "groq") alternatives.push("groq");
+  return alternatives;
+}; // ✅ correct
+
 
   // Render
   return (
