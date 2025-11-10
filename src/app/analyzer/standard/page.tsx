@@ -739,7 +739,7 @@ Analyzed with: ${providerInfo[aiProvider].name}
                   </>
                 )}
               </div>
-            )}
+            )
           </div>
         )}
       </div>
