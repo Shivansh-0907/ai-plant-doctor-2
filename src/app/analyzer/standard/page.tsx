@@ -1,3 +1,7 @@
+Gmail	Shiva Jain <shivagrafix0907@gmail.com>
+(no subject)
+Shashank Chakradhari <shashankchakradhari01@gmail.com>	Tue, Nov 11, 2025 at 4:51 PM
+To: shivagrafix0907@gmail.com
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -648,7 +652,7 @@ export default function StandardAnalyzerPage(): JSX.Element {
       </div>
     </div>
   );
-}
+}"use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
@@ -1298,7 +1302,7 @@ export default function StandardAnalyzerPage(): JSX.Element {
       </div>
     </div>
   );
-}
+}"use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
