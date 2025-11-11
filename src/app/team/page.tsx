@@ -1,37 +1,51 @@
 "use client";
 
-import { Github, Linkedin, Mail, Code, Palette, Database } from "lucide-react";
+import { Github, Linkedin, Mail, Code, Palette, Database, Video } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 
 const teamMembers = [
   {
-    name: "Shivansh",
+    name: "Shivansh Jain",
     role: "Full Stack Developer",
     icon: Code,
-    description: "Architected the full-stack solution and implemented the AI model integration.",
-    skills: ["React", "Next.js", "Python", "TensorFlow"],
+    description:
+      "Architected the full-stack solution and implemented the AI model integration, authentication system, and main analyzer logic.",
+    skills: ["React", "Next.js", "Python", "TensorFlow", "Firebase"],
     github: "https://github.com",
     linkedin: "https://linkedin.com",
     email: "shivansh@ecotech.com",
   },
   {
-    name: "Vidhan",
-    role: "UI/UX Designer & Frontend Dev",
+    name: "Vidhan Uppal",
+    role: "UI/UX Designer & Frontend Developer",
     icon: Palette,
-    description: "Designed the eco-friendly interface and implemented responsive components.",
+    description:
+      "Designed the eco-friendly interface and implemented responsive, modern components with smooth user experience.",
     skills: ["Figma", "TailwindCSS", "React", "TypeScript"],
     github: "https://github.com",
     linkedin: "https://linkedin.com",
     email: "vidhan@ecotech.com",
   },
   {
-    name: "Tanishq",
-    role: "ML Engineer & Backend Dev",
+    name: "Shashank Chakradhari",
+    role: "Backend Developer",
     icon: Database,
-    description: "Developed and trained the disease detection AI model with 98% accuracy.",
-    skills: ["Python", "PyTorch", "Node.js", "FastAPI"],
+    description:
+      "Developed and optimized backend APIs, handled database integration, and ensured seamless communication between the frontend and AI models.",
+    skills: ["Node.js", "Express", "MongoDB", "Next.js API Routes"],
+    github: "https://github.com",
+    linkedin: "https://linkedin.com",
+    email: "shashank@ecotech.com",
+  },
+  {
+    name: "Tanishq Jain",
+    role: "Graphics & Media Designer",
+    icon: Video,
+    description:
+      "Created stunning visual content — including presentation design, promotional videos, ad editing, and website graphics — to elevate brand impact.",
+    skills: ["Canva", "Photoshop", "Premiere Pro", "PowerPoint"],
     github: "https://github.com",
     linkedin: "https://linkedin.com",
     email: "tanishq@ecotech.com",
@@ -52,7 +66,6 @@ export default function TeamPage() {
 
           {/* Logo and Team Name */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-            {/* Logo with gentle glow */}
             <div
               className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center
               bg-transparent shadow-[0_0_12px_rgba(236,72,153,0.25)]
@@ -67,7 +80,6 @@ export default function TeamPage() {
               />
             </div>
 
-            {/* Title */}
             <h1 className="text-4xl sm:text-5xl text-center sm:text-left tracking-tight">
               <span className="text-gray-900 dark:text-white font-black">Eco</span>
               <span className="text-gray-900 dark:text-white font-semibold">Tech</span>
@@ -76,12 +88,12 @@ export default function TeamPage() {
           </div>
 
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            A passionate team of developers and designers committed to using technology for environmental sustainability.
+            A passionate team of developers, designers, and innovators committed to using technology for environmental sustainability.
           </p>
         </div>
 
         {/* Team Members */}
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-4 sm:grid-cols-2 gap-8">
           {teamMembers.map((member, index) => {
             const IconComponent = member.icon;
             return (
@@ -101,7 +113,9 @@ export default function TeamPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground text-center">{member.description}</p>
+                  <p className="text-sm text-muted-foreground text-center">
+                    {member.description}
+                  </p>
 
                   <div className="flex flex-wrap gap-2 justify-center">
                     {member.skills.map((skill, skillIndex) => (
@@ -115,17 +129,42 @@ export default function TeamPage() {
                   </div>
 
                   <div className="flex justify-center gap-2 pt-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-green-600 dark:hover:text-green-400" asChild>
-                      <a href={member.github} target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:text-green-600 dark:hover:text-green-400"
+                      asChild
+                    >
+                      <a
+                        href={member.github}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="GitHub"
+                      >
                         <Github className="h-4 w-4" />
                       </a>
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-green-600 dark:hover:text-green-400" asChild>
-                      <a href={member.linkedin} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:text-green-600 dark:hover:text-green-400"
+                      asChild
+                    >
+                      <a
+                        href={member.linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="LinkedIn"
+                      >
                         <Linkedin className="h-4 w-4" />
                       </a>
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-green-600 dark:hover:text-green-400" asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:text-green-600 dark:hover:text-green-400"
+                      asChild
+                    >
                       <a href={`mailto:${member.email}`} aria-label="Email">
                         <Mail className="h-4 w-4" />
                       </a>
@@ -140,11 +179,13 @@ export default function TeamPage() {
         {/* Team Mission */}
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-2 border-green-200 dark:border-green-800">
           <CardContent className="pt-6 text-center space-y-4">
-            <h2 className="text-2xl font-bold text-green-900 dark:text-green-100">Our Mission</h2>
+            <h2 className="text-2xl font-bold text-green-900 dark:text-green-100">
+              Our Mission
+            </h2>
             <p className="text-muted-foreground max-w-3xl mx-auto leading-relaxed">
               At EcoTech Squad, we believe in leveraging cutting-edge AI technology to solve real-world agricultural challenges.
-              Our plant disease detector aims to help farmers and gardeners identify and treat plant diseases early,
-              reducing crop loss and promoting sustainable farming practices. Together, we're building a greener future,
+              Our plant disease detector helps farmers and gardeners identify and treat plant diseases early,
+              reducing crop loss and promoting sustainable farming practices. Together, we’re building a greener future —
               one plant at a time.
             </p>
           </CardContent>
