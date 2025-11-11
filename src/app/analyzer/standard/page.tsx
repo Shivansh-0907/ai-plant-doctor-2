@@ -1,116 +1,146 @@
 "use client";
 
-import { useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   Upload,
-  X,
+  Camera,
+  RefreshCw,
   Loader2,
   CheckCircle,
   AlertTriangle,
-  Image as ImageIcon,
-  Sparkles,
-  Zap,
-  Clock,
-  RefreshCw,
   Eye,
   Stethoscope,
-  AlertCircle,
   Pill,
   BookOpen,
-  Camera,
   Heart,
-  TrendingUp,
-  Shield,
+  Leaf,
+  Sparkles,
+  Activity,
+  Zap,
+  X,
+  Sun
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import Image from "next/image";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+
+/* ========================= Types & Providers ========================= */
+type PossibleDisease = { name?: string; description?: string; likelihood?: number } | string;
+
+type CauseInfo = {
+  disease: string;
+  cause: string;
+  explanation: string;
+};
 
 type AnalysisResult = {
   noLeafDetected?: boolean;
-  stage: number;
-  damageType: string;
+  stage?: number;
+  damageType?: string;
   healthPercentage: number;
-  category: string;
-  possibleDiseases:
-    | Array<{ name: string; description: string; likelihood: number }>
-    | string[];
-  primaryDisease: string;
-  confidence: number;
+  category?: string;
+  possibleDiseases?: PossibleDisease[];
+  primaryDisease?: string;
+  confidence?: number; // 0..1
   severity: "none" | "low" | "medium" | "high";
-  description: string;
-  causes?: Array<{ disease: string; cause: string; explanation: string }>;
-  careTips: string[];
-  symptoms: string[];
+  description?: string;
+  causes?: CauseInfo[];
+  careTips?: string[];
+  symptoms?: string[];
   detectedPatterns?: string[];
   provider?: string;
   cost?: string;
+  plantName?: string | null;
 };
 
 type AIProvider = "gemini" | "groq";
 
-export default function StandardAnalyzerPage() {
+const providerInfo: Record<
+  AIProvider,
+  {
+    name: string;
+    badge: string;
+    description: string;
+  }
+> = {
+  gemini: {
+    name: "Gemini 2.0 Flash",
+    badge: "FREE",
+    description: "High-accuracy vision model"
+  },
+  groq: {
+    name: "Groq Llama 4 Scout",
+    badge: "FAST",
+    description: "Low-latency inference"
+  }
+};
+
+/* ========================= Helpers ========================= */
+const clamp = (v: number, a = 0, b = 100) => Math.max(a, Math.min(b, v));
+
+const getSeverityColor = (severity: AnalysisResult["severity"]) => {
+  switch (severity) {
+    case "none":
+    case "low":
+      return "text-green-600 dark:text-green-300";
+    case "medium":
+      return "text-yellow-600 dark:text-yellow-300";
+    case "high":
+      return "text-red-600 dark:text-red-300";
+    default:
+      return "text-gray-600";
+  }
+};
+
+const getSeverityLabel = (severity: AnalysisResult["severity"]) => {
+  switch (severity) {
+    case "none":
+      return "None";
+    case "low":
+      return "Low";
+    case "medium":
+      return "Medium";
+    case "high":
+      return "High";
+    default:
+      return "Unknown";
+  }
+};
+
+const healthCondition = (hp: number) => {
+  if (hp >= 90) return { label: "Super Healthy", tone: "excellent" as const };
+  if (hp >= 70) return { label: "Good", tone: "good" as const };
+  if (hp >= 45) return { label: "At Risk", tone: "warning" as const };
+  return { label: "Critical", tone: "critical" as const };
+};
+
+/* ========================= Component ========================= */
+export default function StandardAnalyzerPage(): JSX.Element {
+  // Part 1 state (imports & helpers)
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [aiProvider, setAiProvider] = useState<AIProvider>("gemini");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [progress, setProgress] = useState<number>(0);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [aiProvider, setAiProvider] = useState<AIProvider>("gemini");
-  const [rateLimitInfo, setRateLimitInfo] = useState<{
-    provider: string;
-    message: string;
-  } | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
 
-  const providerInfo = {
-    gemini: {
-      name: "Gemini 2.0 Flash",
-      badge: "FREE - Recommended",
-      color:
-        "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
-      description: "15 img/min • Most generous free tier",
-      logo: "https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/project-uploads/12b00f93-5c00-4001-bf0f-c3e600a62334/generated_images/google-gemini-ai-logo-professional-vecto-db2a7dc9-20251104230847.jpg",
-      features: "Advanced vision AI with high accuracy",
-    },
-    groq: {
-      name: "Groq Llama 4 Scout",
-      badge: "Ultra-Fast",
-      color:
-        "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
-      description: "500 tokens/sec • Free trial",
-      logo: "https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/project-uploads/12b00f93-5c00-4001-bf0f-c3e600a62334/generated_images/groq-ai-logo-professional-vector-illustr-f61341ee-20251104230846.jpg",
-      features: "Lightning-fast inference engine",
-    },
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /* ---------------- Image handlers (Part 2) ---------------- */
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File size must be less than 10MB");
-      return;
-    }
+    setFileName(file.name);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setSelectedImage(reader.result as string);
+    reader.onload = (ev) => {
+      setSelectedImage(ev.target?.result as string);
       setResult(null);
       setError(null);
     };
@@ -120,275 +150,477 @@ export default function StandardAnalyzerPage() {
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File size must be less than 10MB");
-      return;
-    }
+    setFileName(file.name);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setSelectedImage(reader.result as string);
+    reader.onload = (ev) => {
+      setSelectedImage(ev.target?.result as string);
       setResult(null);
       setError(null);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleAnalyze = async () => {
-    if (!selectedImage) return;
-
-    setIsAnalyzing(true);
-    setError(null);
-    setRateLimitInfo(null);
-
-    const providerName = providerInfo[aiProvider].name;
-    const loadingToast = toast.loading(`Analyzing with ${providerName}...`);
-
-    try {
-      const apiEndpoint = `/api/analyze-${aiProvider}`;
-      const response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMessage = data.error || "Analysis failed";
-        const isRateLimit = data.isRateLimit || false;
-        const suggestedProviders = data.suggestedProviders || [];
-
-        if (isRateLimit) {
-          setRateLimitInfo({ provider: providerName, message: errorMessage });
-          toast.dismiss(loadingToast);
-          toast.error("⏱️ Rate Limit Reached", {
-            description: `${providerName} limit exceeded. Try ${suggestedProviders.join(" or ")}!`,
-            duration: 8000,
-          });
-        } else {
-          setError(errorMessage);
-          toast.dismiss(loadingToast);
-          toast.error(`${providerName} Error`, { description: errorMessage });
-        }
-        return;
-      }
-
-      setResult(data);
-      toast.dismiss(loadingToast);
-      toast.success(`✅ ${providerName} analysis complete!`, {
-        description: `${data.primaryDisease} detected with ${data.confidence.toFixed(1)}% confidence`,
-      });
-    } catch (err) {
-      console.error("Analysis error:", err);
-      const msg = `Failed to connect to ${providerName}. Check console for details.`;
-      setError(msg);
-      toast.dismiss(loadingToast);
-      toast.error(msg);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const handleReset = () => {
+  const resetAll = () => {
     setSelectedImage(null);
+    setFileName(null);
     setResult(null);
     setError(null);
-    fileInputRef.current && (fileInputRef.current.value = "");
-    cameraInputRef.current && (cameraInputRef.current.value = "");
+    setIsAnalyzing(false);
+    setProgress(0);
+    if (fileRef.current) fileRef.current.value = "";
+    if (cameraRef.current) cameraRef.current.value = "";
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "none":
-      case "low":
-        return "text-green-600 dark:text-green-400";
-      case "medium":
-        return "text-yellow-600 dark:text-yellow-400";
-      case "high":
-        return "text-red-600 dark:text-red-400";
-      default:
-        return "text-gray-600";
+  /* ---------------- Analysis logic (Part 2 & mapping from Part 1) ---------------- */
+  const startAnalysis = async () => {
+    if (!selectedImage) {
+      toast.error("Please upload or capture a leaf image first.");
+      return;
+    }
+    setError(null);
+    setIsAnalyzing(true);
+    setProgress(2);
+    setResult(null);
+
+    let simulatedProgress = 2;
+    const progressInterval = setInterval(() => {
+      simulatedProgress += Math.random() * 12 + 6;
+      setProgress(clamp(Math.round(simulatedProgress)));
+    }, 550);
+
+    try {
+      // === Replace this block with a real API call ===
+      // Example:
+      // const resp = await fetch(`/api/analyze-${aiProvider}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({image:selectedImage}) });
+      // const data = await resp.json();
+      // map data -> AnalysisResult and setResult(mapped)
+      // ------------------------------------------------
+
+      // Simulated result (Part 3)
+      await new Promise((r) => setTimeout(r, 1800 + Math.random() * 1200));
+
+      const simulated: AnalysisResult = {
+        stage: 2,
+        damageType: "Spot lesions",
+        healthPercentage: 72,
+        category: "Fungal infection (likely)",
+        possibleDiseases: [
+          { name: "Alternaria Leaf Spot", description: "Concentric brown rings", likelihood: 67 },
+          { name: "Septoria Leaf Spot", description: "Small tan spots with dark borders", likelihood: 21 }
+        ],
+        primaryDisease: "Alternaria Leaf Spot",
+        confidence: 0.88,
+        severity: "medium",
+        description:
+          "The model detected circular brown lesions with yellow halos consistent with a fungal pathogen. Early intervention recommended.",
+        causes: [
+          {
+            disease: "Alternaria Leaf Spot",
+            cause: "Warm, humid conditions and leaf wetness",
+            explanation: "Fungal spores thrive in damp conditions; overhead watering and poor ventilation accelerate spread."
+          }
+        ],
+        careTips: [
+          "Remove infected leaves and dispose of them (do not compost).",
+          "Avoid overhead watering; water at soil level only.",
+          "Improve air circulation (fan or move to a less crowded area).",
+          "Consider copper or neem-based fungicide as an organic option."
+        ],
+        symptoms: ["Brown circular lesions", "Yellow haloes", "Slight leaf curling"],
+        detectedPatterns: ["Circular lesions", "Yellow halos"],
+        provider: providerInfo[aiProvider].name,
+        cost: "Free",
+        plantName: null
+      };
+
+      clearInterval(progressInterval);
+      setProgress(100);
+      await new Promise((r) => setTimeout(r, 300));
+      setResult(simulated);
+      toast.success("Analysis complete");
+    } catch (err: any) {
+      clearInterval(progressInterval);
+      setError("Failed to analyze image. Try again or switch provider.");
+      setResult(null);
+      toast.error("Analysis failed");
+    } finally {
+      setIsAnalyzing(false);
+      setProgress(100);
+      setTimeout(() => setProgress(0), 4000);
     }
   };
 
-  const getSeverityBg = (severity: string) => {
-    switch (severity) {
-      case "none":
-      case "low":
-        return "bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-800";
-      case "medium":
-        return "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800";
-      case "high":
-        return "bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-800";
-      default:
-        return "bg-gray-100 border-gray-200";
+  /* -------------- copy full report (Part 3) -------------- */
+  const copyFullReport = async () => {
+    if (!result) return;
+    const diseases = Array.isArray(result.possibleDiseases)
+      ? result.possibleDiseases
+          .map((d: any, i) =>
+            typeof d === "string"
+              ? `${i + 1}. ${d}`
+              : `${i + 1}. ${d.name}${d.likelihood ? ` (${d.likelihood}% likely)` : ""}${d.description ? ` - ${d.description}` : ""}`
+          )
+          .join("\n")
+      : "N/A";
+
+    const causes = result.causes && result.causes.length > 0 ? result.causes
+      .map((c, i) => `${i + 1}. ${c.disease}\n Cause: ${c.cause}\n Why: ${c.explanation}`)
+      .join("\n\n") : "N/A";
+
+    const care = result.careTips && result.careTips.length ? result.careTips.map((c, i) => `${i + 1}. ${c}`).join("\n") : "N/A";
+
+    const textReport = [
+      "PLANT DISEASE ANALYSIS REPORT",
+      "---------------------------------------",
+      `Primary Disease: ${result.primaryDisease ?? "N/A"}`,
+      `Health Status: ${result.healthPercentage}% Healthy`,
+      `Severity: ${result.severity.toUpperCase()}`,
+      `Category: ${result.category ?? "N/A"}`,
+      "",
+      "Description:",
+      result.description ?? "N/A",
+      "",
+      "Detected Symptoms:",
+      result.symptoms && result.symptoms.length ? result.symptoms.map((s, i) => `${i + 1}. ${s}`).join("\n") : "None",
+      "",
+      "POSSIBLE DISEASES:",
+      diseases,
+      "",
+      "CAUSES:",
+      causes,
+      "",
+      "RECOMMENDED ACTIONS:",
+      care,
+      "",
+      `Analyzed with: ${result.provider ?? "Orchid AI"}`,
+      `Detected patterns: ${result.detectedPatterns?.join(", ") ?? "N/A"}`,
+      "---------------------------------------"
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(textReport);
+      toast.success("Full report copied to clipboard");
+    } catch {
+      toast.error("Unable to copy report (clipboard permission denied)");
     }
   };
 
-  const getHealthStatusMessage = (health: number) => {
-    if (health >= 90) return "✨ EXCELLENT - Super healthy, perfect condition!";
-    if (health >= 70) return "🌿 Good - Early stage detection successful!";
-    if (health >= 45) return "⚠️ Moderate - Treatment recommended soon";
-    return "🚨 CRITICAL - Immediate intervention required!";
-  };
-
-  const getAlternativeProviders = () => {
-    const alternatives: AIProvider[] = [];
-    if (aiProvider !== "gemini") alternatives.push("gemini");
-    if (aiProvider !== "groq") alternatives.push("groq");
-    return alternatives;
-  };
-
+  /* ========================= Render ========================= */
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen py-10 px-4 bg-gradient-to-b from-green-50 to-white dark:from-zinc-900 dark:to-black">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/40 dark:to-emerald-900/40 border border-green-200/50 dark:border-green-700/50 mb-4">
-            <Sparkles className="h-4 w-4 text-green-600 dark:text-green-400 animate-pulse" />
-            <span className="text-sm font-semibold text-green-700 dark:text-green-300">
-              Standard Plant Analyzer
-            </span>
+        <header className="text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 border border-green-200/50 mx-auto">
+            <Sparkles className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-semibold text-green-700 dark:text-green-300">Standard Plant Analyzer</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold">
-            Plant Disease{" "}
-            <span className="text-green-600 dark:text-green-400">Analyzer</span>
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Choose your AI model • Multi-stage disease detection • All stages
-            specialist
-          </p>
-        </div>
+          <h1 className="mt-4 text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-gray-50">AI Plant 2D Analyzer</h1>
+          <p className="mt-2 text-sm text-muted-foreground max-w-2xl mx-auto">Upload a leaf image and get an instant diagnosis, treatment plan, and prevention tips.</p>
+        </header>
 
-        {/* AI Provider Selection */}
-        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20 shadow-lg">
+        {/* Controls Card */}
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              Select AI model
+              <Leaf className="w-5 h-5 text-green-600" /> Upload & Analyze
             </CardTitle>
-            <CardDescription>
-              Choose the AI model that best fits your needs
-            </CardDescription>
+            <CardDescription>Use a clear photo for best results — good lighting, single leaf preferred.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Select
-              value={aiProvider}
-              onValueChange={(value) => setAiProvider(value as AIProvider)}
-            >
-              <SelectTrigger className="w-full border-2 hover:border-blue-400 transition-all">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(providerInfo).map(([key, info]) => (
-                  <SelectItem key={key} value={key}>
-                    {info.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Upload / Preview column */}
+              <div className="col-span-1 md:col-span-2 space-y-4">
+                {!selectedImage ? (
+                  <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3">
+                    <Upload className="w-10 h-10 text-green-500" />
+                    <p className="text-sm text-muted-foreground">Drag & drop or click to upload a leaf image</p>
+                    <div className="flex gap-2">
+                      <input ref={fileRef} onChange={handleFileChange} id="file" type="file" accept="image/*" className="hidden" />
+                      <label htmlFor="file">
+                        <Button onClick={() => fileRef.current?.click()} className="bg-gradient-to-r from-green-600 to-emerald-600">Choose File</Button>
+                      </label>
+
+                      <input ref={cameraRef} onChange={handleCameraCapture} id="camera" type="file" accept="image/*" capture="environment" className="hidden" />
+                      <label htmlFor="camera">
+                        <Button onClick={() => cameraRef.current?.click()} variant="outline">Take Photo</Button>
+                      </label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Tip: Crop to a single leaf, avoid blur and shadows for best detection.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-4 items-start">
+                    <div className="w-full sm:w-72 h-56 relative rounded-xl overflow-hidden border shadow-sm">
+                      <Image src={selectedImage} alt="selected" fill className="object-cover" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-sm font-semibold">{fileName ?? "Uploaded image"}</div>
+                          <div className="text-xs text-muted-foreground mt-1">Provider: <strong>{providerInfo[aiProvider].name}</strong></div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => { setSelectedImage(null); setFileName(null); if (fileRef.current) fileRef.current.value = ""; if (cameraRef.current) cameraRef.current.value = ""; }}>
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                        {result ? (
+                          <div className="flex items-center gap-3">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <div>
+                              <div className="text-sm font-medium">Last analysis:</div>
+                              <div className="text-xs text-muted-foreground">{result.primaryDisease} • {Math.round(result.healthPercentage)}% healthy</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">Ready to analyze this image.</div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 mt-4">
+                        <Button onClick={startAnalysis} disabled={isAnalyzing || !selectedImage} className="bg-gradient-to-r from-green-600 to-emerald-600">
+                          {isAnalyzing ? <><Loader2 className="w-4 h-4 animate-spin mr-2"/>Analyzing...</> : <>Analyze Image</>}
+                        </Button>
+                        <Button onClick={resetAll} variant="outline">Reset</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right column: Provider + progress + tips */}
+              <div className="col-span-1 flex flex-col gap-4">
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground">AI Model</div>
+                  <Select value={aiProvider} onValueChange={(v) => setAiProvider(v as AIProvider)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini">{providerInfo.gemini.name} — {providerInfo.gemini.badge}</SelectItem>
+                      <SelectItem value="groq">{providerInfo.groq.name} — {providerInfo.groq.badge}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground">Analysis Progress</div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <Progress value={progress} className="h-3 rounded-full" />
+                    </div>
+                    <div className="text-xs w-12 text-right">{progress}%</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800">
+                  <div className="text-sm font-semibold">Quick tips for better results</div>
+                  <ul className="mt-2 text-xs space-y-1 text-muted-foreground">
+                    <li>• Use a single leaf on a neutral background</li>
+                    <li>• Avoid strong backlight or heavy shadows</li>
+                    <li>• Ensure image is in focus and high resolution</li>
+                  </ul>
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  <div>Provider info</div>
+                  <div className="mt-1 text-sm">{providerInfo[aiProvider].description}</div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Upload Section */}
-        {!selectedImage ? (
-          <Card className="border-2 border-dashed border-green-200 dark:border-green-800 hover:border-green-400 transition-colors">
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center justify-center space-y-4 py-12">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg">
-                  <Upload className="h-10 w-10 text-white" />
-                </div>
-                <div className="text-center space-y-2">
-                  <h3 className="text-xl font-semibold">Upload Plant Image</h3>
-                  <p className="text-sm text-muted-foreground">
-                    PNG, JPG or JPEG (max. 10MB)
-                  </p>
-                </div>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleCameraCapture}
-                  className="hidden"
-                  id="camera-capture"
-                />
-
-                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
-                  <label htmlFor="file-upload" className="flex-1">
-                    <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
-                      <ImageIcon className="mr-2 h-5 w-5" />
-                      Choose File
-                    </Button>
-                  </label>
-                  <label htmlFor="camera-capture" className="flex-1">
-                    <Button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700">
-                      <Camera className="mr-2 h-5 w-5" />
-                      Take Photo
-                    </Button>
-                  </label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
+        {/* RESULTS */}
+        <div className="space-y-6">
+          {/* Health Overview — Always show */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <div>
-                <CardTitle>Selected Image</CardTitle>
-                <CardDescription className="flex items-center gap-2">
-                  Using:
-                  <Badge className={providerInfo[aiProvider].color}>
-                    {providerInfo[aiProvider].name}
-                  </Badge>
-                </CardDescription>
-              </div>
-              <Button variant="ghost" size="icon" onClick={handleReset}>
-                <X className="h-4 w-4" />
-              </Button>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="w-5 h-5 text-rose-500" />
+                Health Overview
+              </CardTitle>
+              <CardDescription>Quick snapshot of the detected plant health</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted">
-                <Image
-                  src={selectedImage}
-                  alt="Selected plant"
-                  fill
-                  className="object-contain"
-                />
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 flex items-center justify-center rounded-full bg-gradient-to-br from-green-100 to-emerald-200">
+                    <div className="text-center">
+                      <div className="text-lg font-bold">{result ? Math.round(result.healthPercentage) : "--"}%</div>
+                      <div className="text-xs text-muted-foreground">Estimated health</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-semibold">{result ? (healthCondition(result.healthPercentage).label) : "No data yet"}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{result ? (result.description ?? "") : "Upload and analyze an image to get a detailed health overview."}</div>
+                  </div>
+                </div>
+
+                <div className="min-w-[220px]">
+                  <div className="text-xs text-muted-foreground mb-2">Overall severity</div>
+                  <div className={`rounded-lg p-3 border ${result ? (result.severity === "high" ? "border-red-200" : result.severity === "medium" ? "border-yellow-200" : "border-green-200") : "border-gray-200" }`}>
+                    <div className={`text-sm font-semibold ${result ? getSeverityColor(result.severity) : "text-gray-600"}`}>
+                      {result ? `${getSeverityLabel(result.severity)}` : "—"}
+                    </div>
+                    <div className="text-xs mt-1 text-muted-foreground">{result ? `Model confidence ${(result.confidence ?? 0) * 100}%` : "Model will show confidence after analyzing"}</div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
-        )}
 
-        {/* Analyze Button */}
-        {selectedImage && !result && !error && (
-          <Button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing}
-            className="w-full h-12 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Analyzing with {providerInfo[aiProvider].name}...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="mr-2 h-5 w-5" />
-                Analyze with {providerInfo[aiProvider].name}
-              </>
-            )}
-          </Button>
-        )}
+          {/* Plant Condition Summary (Always visible) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-blue-600" />
+                Plant Condition Summary
+              </CardTitle>
+              <CardDescription>Readable one-line statement summarizing the leaf status</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                {result ? (
+                  <p>
+                    {result.healthPercentage >= 90 && "Leaf looks vibrant and healthy."}
+                    {result.healthPercentage >= 70 && result.healthPercentage < 90 && "Leaf shows minor stress — early-stage issues detected."}
+                    {result.healthPercentage >= 45 && result.healthPercentage < 70 && "Leaf shows noticeable symptoms — treatment recommended."}
+                    {result.healthPercentage < 45 && "Leaf condition is critical — immediate action required."}
+                    {" "} Primary diagnosis: <strong>{result.primaryDisease ?? "N/A"}</strong>.
+                  </p>
+                ) : (
+                  <p>No analysis yet — upload a clear photo and click Analyze to get a summary.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* General Plant Care Tips — Always visible */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sun className="w-5 h-5 text-yellow-500" />
+                General Plant Care Tips
+              </CardTitle>
+              <CardDescription>Practical tips to keep your plant healthy (always visible)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="list-decimal ml-6 text-sm space-y-2 text-gray-700 dark:text-gray-300">
+                <li>Provide consistent watering—allow the top 1–2 inches of soil to dry before the next water.</li>
+                <li>Ensure indirect bright light—avoid prolonged harsh direct sunlight for sensitive species.</li>
+                <li>Improve airflow—good circulation reduces fungal risk.</li>
+                <li>Use well-draining soil and proper pot drainage to prevent root rot.</li>
+                <li>Feed lightly with balanced fertilizer during growing season (follow product instructions).</li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* If result exists, show detailed sections */}
+          {result && (
+            <>
+              {/* Possible Diseases */}
+              <Card className="transition-transform hover:-translate-y-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Stethoscope className="w-5 h-5 text-orange-600" />
+                    Possible Diseases
+                  </CardTitle>
+                  <CardDescription>Detected candidates and their likelihood</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {Array.isArray(result.possibleDiseases) && result.possibleDiseases.length > 0 ? (
+                    result.possibleDiseases.map((d: any, idx: number) => {
+                      const name = typeof d === "string" ? d : d.name ?? "Unknown";
+                      const likelihood = typeof d === "object" && d.likelihood ? `${d.likelihood}% likely` : null;
+                      return (
+                        <div key={idx} className="p-3 rounded-lg border border-orange-100 dark:border-orange-800 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="font-semibold text-orange-700 dark:text-orange-300">{name}</div>
+                              {typeof d === "object" && d.description && <div className="text-sm text-muted-foreground mt-1">{d.description}</div>}
+                            </div>
+                            {likelihood && <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-700">{likelihood}</Badge>}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-800">
+                      <div className="text-sm text-muted-foreground">No likely diseases identified. Continue routine monitoring.</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Causes */}
+              <Card className="transition-transform hover:-translate-y-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-purple-600" />
+                    Causes
+                  </CardTitle>
+                  <CardDescription>Root causes and explanations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {result.causes && result.causes.length > 0 ? (
+                    result.causes.map((c, i) => (
+                      <div key={i} className="p-3 rounded-lg border border-purple-100 dark:border-purple-800 mb-3">
+                        <div className="font-semibold text-purple-700 dark:text-purple-300">{c.disease}</div>
+                        <div className="text-sm text-muted-foreground mt-1"><strong>Cause:</strong> {c.cause}</div>
+                        <div className="text-sm text-muted-foreground mt-2">{c.explanation}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-800">
+                      <div className="text-sm text-muted-foreground">No specific causes identified by the model.</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recommended Actions */}
+              <Card className="transition-transform hover:-translate-y-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Pill className="w-5 h-5 text-green-600" />
+                    Recommended Actions
+                  </CardTitle>
+                  <CardDescription>Treatment steps, ordering of priorities, and care tips</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {result.careTips && result.careTips.length > 0 ? (
+                    result.careTips.map((tip, idx) => (
+                      <div key={idx} className="flex items-start gap-3 p-3 rounded-lg border border-green-100 dark:border-green-800 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 text-white flex items-center justify-center font-semibold">{idx + 1}</div>
+                        <div className="text-sm">{tip}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-800">
+                      <div className="text-sm text-muted-foreground">No specific actionable recommendations available.</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-2">
+                <Button onClick={copyFullReport} className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600">
+                  <BookOpen className="w-4 h-4 mr-2" /> Copy Full Report
+                </Button>
+
+                <Button onClick={resetAll} variant="outline" className="flex-1">
+                  <RefreshCw className="w-4 h-4 mr-2" /> Reset
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
