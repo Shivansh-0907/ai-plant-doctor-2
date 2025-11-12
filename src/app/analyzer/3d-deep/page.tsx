@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import {
   Upload,
   X,
@@ -29,23 +29,6 @@ import Image from "next/image";
 import { toast } from "sonner";
 import LeafDeepAnalyzer3D from "@/components/LeafDeepAnalyzer3D";
 
-/**
- * Enhanced 3D Deep Analyzer page
- * - Keeps your original logic and API usage (analyze-gemini)
- * - Adds 3-stage condition UI (Healthy / Moderate / Critical)
- * - Adds 8 detailed sections inside each expanded stage:
- *   1) 3D Visualization
- *   2) Health Overview
- *   3) Plant Condition Summary
- *   4) General Plant Care Tips
- *   5) Possible Diseases
- *   6) Causes
- *   7) Recommended Actions
- *   8) Copy / Reset Buttons
- *
- * Replace your existing src/app/analyzer/3d-deep/page.tsx with this file.
- */
-
 /* ---------------------- Types ----------------------- */
 type Cause = { disease: string; cause: string; explanation: string };
 type PossibleDisease = { name?: string; description?: string; likelihood?: number } | string;
@@ -71,7 +54,6 @@ type AnalysisResult = {
 
 /* -------------------- Helper: stage detection -------------------- */
 function getConditionStage(healthPercentage?: number, severity?: AnalysisResult["severity"]) {
-  // Returns index 0 (healthy), 1 (moderate), 2 (critical) with metadata
   const hp = typeof healthPercentage === "number" ? healthPercentage : undefined;
   if (hp !== undefined) {
     if (hp >= 80) {
@@ -104,7 +86,6 @@ function getConditionStage(healthPercentage?: number, severity?: AnalysisResult[
     };
   }
 
-  // fallback to severity string
   switch (severity) {
     case "none":
     case "low":
@@ -140,111 +121,44 @@ function getConditionStage(healthPercentage?: number, severity?: AnalysisResult[
 
 /* -------------------- Main Component -------------------- */
 export default function DeepAnalyzer3DPage() {
-  // state & refs (kept exactly as in your original file)
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
-  /* ---------------- File / Camera Handlers (unchanged logic) ---------------- */
+  /* ---------------- File / Camera Handlers ---------------- */
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("File size must be less than 10MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-        setResult(null);
-        setError(null);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be less than 10MB");
+      return;
     }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImage(reader.result as string);
+      setResult(null);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("File size must be less than 10MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-        setResult(null);
-        setError(null);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be less than 10MB");
+      return;
     }
-  };
-
-  /* ---------------- Analysis function (kept original behavior, with mapping) ---------------- */
-  const handleAnalyze = async () => {
-    if (!selectedImage) return;
-    setIsAnalyzing(true);
-    setError(null);
-    const loadingToast = toast.loading("Deep analyzing with enhanced AI...");
-
-    try {
-      // Use Gemini for deep analysis (as in your original code)
-      const response = await fetch("/api/analyze-gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage })
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMessage = data.error || "Analysis failed";
-        setError(errorMessage);
-        toast.dismiss(loadingToast);
-        toast.error("Deep Analysis Error", {
-          description: errorMessage,
-          duration: 10000
-        });
-        setIsAnalyzing(false);
-        return;
-      }
-
-      // Map API output to AnalysisResult shape sensibly (preserve fields if present)
-      const mapped: AnalysisResult = {
-        noLeafDetected: data.noLeafDetected ?? false,
-        stage: data.stage ?? data.analysisStage ?? 0,
-        damageType: data.damageType ?? data.damage ?? "Unknown",
-        healthPercentage: typeof data.healthPercentage === "number" ? data.healthPercentage : (data.health ?? 100),
-        category: data.category ?? data.primaryCategory ?? "General",
-        possibleDiseases: data.possibleDiseases ?? data.diseases ?? [],
-        primaryDisease: data.primaryDisease ?? data.primary ?? (Array.isArray(data.possibleDiseases) && data.possibleDiseases[0]?.name) ?? "Unknown",
-        confidence: typeof data.confidence === "number" ? data.confidence : (data.confidenceScore ?? 1),
-        severity: data.severity ?? data.risk ?? "none",
-        description: data.description ?? data.summary ?? "No additional details available.",
-        causes: data.causes ?? data.rootCauses ?? [],
-        careTips: data.careTips ?? data.recommendations ?? data.actions ?? [],
-        symptoms: data.symptoms ?? data.detectedSymptoms ?? [],
-        detectedPatterns: data.detectedPatterns ?? [],
-        provider: data.provider ?? "Gemini 3D",
-        cost: data.cost ?? undefined
-      };
-
-      setResult(mapped);
-      toast.dismiss(loadingToast);
-      toast.success("✅ 3D Deep analysis complete!", {
-        description: `${mapped.primaryDisease} detected - ${mapped.healthPercentage}% healthy tissue`
-      });
-    } catch (err) {
-      console.error("Analysis error:", err);
-      const errorMsg = "Failed to connect to AI service. Check console for details.";
-      setError(errorMsg);
-      toast.dismiss(loadingToast);
-      toast.error(errorMsg);
-    } finally {
-      setIsAnalyzing(false);
-    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImage(reader.result as string);
+      setResult(null);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleReset = () => {
@@ -253,6 +167,99 @@ export default function DeepAnalyzer3DPage() {
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
+  };
+
+  /* ---------------- Utility: map API -> AnalysisResult ---------------- */
+  const mapApiToResult = (data: any, providerName: string): AnalysisResult => {
+    return {
+      noLeafDetected: data.noLeafDetected ?? false,
+      stage: data.stage ?? data.analysisStage ?? 0,
+      damageType: data.damageType ?? data.damage ?? "Unknown",
+      healthPercentage: typeof data.healthPercentage === "number" ? data.healthPercentage : (data.health ?? 100),
+      category: data.category ?? data.primaryCategory ?? "General",
+      possibleDiseases: data.possibleDiseases ?? data.diseases ?? [],
+      primaryDisease: data.primaryDisease ?? data.primary ?? (Array.isArray(data.possibleDiseases) && data.possibleDiseases[0]?.name) ?? "Unknown",
+      confidence: typeof data.confidence === "number" ? data.confidence : (data.confidenceScore ?? 1),
+      severity: data.severity ?? data.risk ?? "none",
+      description: data.description ?? data.summary ?? "No additional details available.",
+      causes: data.causes ?? data.rootCauses ?? [],
+      careTips: data.careTips ?? data.recommendations ?? data.actions ?? [],
+      symptoms: data.symptoms ?? data.detectedSymptoms ?? [],
+      detectedPatterns: data.detectedPatterns ?? [],
+      provider: providerName,
+      cost: data.cost ?? undefined
+    };
+  };
+
+  /* ---------------- Analysis with Groq-first, Gemini-fallback ---------------- */
+  const handleAnalyze = async () => {
+    if (!selectedImage) {
+      toast.error("Please upload or capture a leaf image first.");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+    const loadingToast = toast.loading("Analyzing with Groq...");
+
+    // helper to attempt a provider endpoint
+    const attempt = async (url: string, providerName: string) => {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: selectedImage })
+        });
+        const body = await res.json().catch(() => ({}));
+        return { ok: res.ok, status: res.status, body };
+      } catch (err) {
+        return { ok: false, status: 0, body: { error: (err as any)?.message ?? "Network error" } };
+      }
+    };
+
+    try {
+      // 1) Try Groq first
+      const groqAttempt = await attempt("/api/analyze-groq", "Groq Llama 4 Scout");
+      if (groqAttempt.ok && groqAttempt.body) {
+        const mapped = mapApiToResult(groqAttempt.body, "Groq Llama 4 Scout");
+        setResult(mapped);
+        toast.dismiss(loadingToast);
+        toast.success("Analysis complete (Groq).", { description: `${mapped.primaryDisease} — ${mapped.healthPercentage}% healthy` });
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // If groq failed (non-ok) — try Gemini
+      toast.dismiss(loadingToast);
+      toast.loading("Groq failed — retrying with Gemini...");
+
+      const geminiAttempt = await attempt("/api/analyze-gemini", "Gemini 2.0 Flash");
+      if (geminiAttempt.ok && geminiAttempt.body) {
+        const mapped = mapApiToResult(geminiAttempt.body, "Gemini 2.0 Flash");
+        setResult(mapped);
+        toast.dismiss();
+        toast.success("Analysis complete (Gemini).", { description: `${mapped.primaryDisease} — ${mapped.healthPercentage}% healthy` });
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // Both failed
+      const errorMsg =
+        groqAttempt.body?.error ??
+        geminiAttempt.body?.error ??
+        "Both Groq and Gemini analysis requests failed. Check logs or try again.";
+      setError(errorMsg);
+      toast.dismiss();
+      toast.error("Analysis failed", { description: errorMsg, duration: 10000 });
+    } catch (err) {
+      console.error("handleAnalyze error:", err);
+      const errorMsg = (err as any)?.message ?? "Unknown error during analysis";
+      setError(errorMsg);
+      toast.dismiss(loadingToast);
+      toast.error(errorMsg);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   /* ---------------- Utility: build full report text ---------------- */
@@ -307,7 +314,7 @@ SECTION 3: RECOMMENDED ACTIONS
 ${care}
 
 ═══════════════════════════════════════════════════════════════════
-Analyzed with: ${result?.provider ?? "Gemini 3D"}
+Analyzed with: ${r.provider ?? "N/A"}
 ═══════════════════════════════════════════════════════════════════
 `;
   };
@@ -329,7 +336,7 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
             <p className="text-lg text-cyan-100/80 max-w-2xl mx-auto">Interactive 360° leaf visualization • Zone-by-zone damage analysis • Enhanced accuracy</p>
           </div>
 
-          {/* Upload Section (unchanged visuals) */}
+          {/* Upload Section */}
           {!selectedImage ? (
             <Card className="border-2 border-cyan-500/50 bg-gradient-to-br from-cyan-950/80 to-blue-950/80 backdrop-blur-sm shadow-2xl shadow-cyan-500/20">
               <CardContent className="pt-6">
@@ -388,7 +395,8 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
 
                 <CardContent>
                   <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/50 border border-cyan-500/30">
-                    <Image src={selectedImage} alt="Selected plant" fill className="object-contain" />
+                    {/* next/image accepts data URLs in Next.js if configured; this mirrors your previous usage */}
+                    <Image src={selectedImage as string} alt="Selected plant" fill className="object-contain" />
                   </div>
                 </CardContent>
               </Card>
@@ -411,12 +419,12 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                   {isAnalyzing ? (
                     <>
                       <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                      Deep analyzing with enhanced AI...
+                      Analyzing...
                     </>
                   ) : (
                     <>
                       <Activity className="mr-3 h-6 w-6" />
-                      Start 3D Deep Analysis
+                      Start 3D Deep Analysis (Groq → Gemini fallback)
                     </>
                   )}
                 </Button>
@@ -511,7 +519,6 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                           <CardDescription className="text-cyan-300/70 text-base">{result.category} • {result.damageType}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                          {/* Description & Health Progress */}
                           <div className="space-y-3">
                             <div className="flex justify-between items-center">
                               <span className="text-sm font-medium text-cyan-200">Health Status</span>
@@ -545,7 +552,6 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                       <div className="mt-6">
                         <h3 className="text-lg font-semibold text-cyan-100/90 mb-3">Plant Condition (3-stage) — Detailed Report</h3>
 
-                        {/* Build stage items */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {(() => {
                             const stageMeta = getConditionStage(result?.healthPercentage, result?.severity);
@@ -622,28 +628,23 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                                     </div>
                                   </div>
 
-                                  {/* Expanded area for the active stage */}
                                   {active && (
                                     <div className="mt-3 text-sm text-white/90 space-y-4">
-                                      {/* 1. 3D Visualization */}
                                       <div className="p-3 rounded-md bg-black/30">
                                         <div className="font-medium mb-1">1️⃣ 3D Visualization</div>
                                         <div className="text-xs text-white/80">Interactive 360° leaf model highlighting damaged zones (red = critical, yellow = moderate).</div>
                                       </div>
 
-                                      {/* 2. Health Overview */}
                                       <div className="p-3 rounded-md bg-black/30">
                                         <div className="font-medium mb-1">2️⃣ Health Overview</div>
                                         <div className="text-xs text-white/80">Overall status: <strong>{s.title}</strong> — Confidence: <strong>{Math.round((result.confidence ?? 1) * 100) / 100}%</strong></div>
                                       </div>
 
-                                      {/* 3. Plant Condition Summary */}
                                       <div className="p-3 rounded-md bg-black/30">
                                         <div className="font-medium mb-1">3️⃣ Plant Condition Summary</div>
                                         <div className="text-xs text-white/80">{s.summary} {result.description ? result.description : ""}</div>
                                       </div>
 
-                                      {/* 4. General Plant Care Tips */}
                                       <div className="p-3 rounded-md bg-black/30">
                                         <div className="font-medium mb-1">4️⃣ General Plant Care Tips</div>
                                         <ul className="list-disc pl-5 space-y-1 text-xs">
@@ -651,7 +652,6 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                                         </ul>
                                       </div>
 
-                                      {/* 5. Possible Diseases */}
                                       {s.diseases && s.diseases.length > 0 && (
                                         <div className="p-3 rounded-md bg-black/30">
                                           <div className="font-medium mb-1">5️⃣ Possible Diseases</div>
@@ -661,7 +661,6 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                                         </div>
                                       )}
 
-                                      {/* 6. Causes */}
                                       {s.causes && s.causes.length > 0 && (
                                         <div className="p-3 rounded-md bg-black/30">
                                           <div className="font-medium mb-1">6️⃣ Causes</div>
@@ -671,7 +670,6 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                                         </div>
                                       )}
 
-                                      {/* 7. Recommended Actions */}
                                       {s.actions && s.actions.length > 0 && (
                                         <div className="p-3 rounded-md bg-black/30">
                                           <div className="font-medium mb-1">7️⃣ Recommended Actions</div>
@@ -681,7 +679,6 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                                         </div>
                                       )}
 
-                                      {/* 8. Copy / Reset Buttons */}
                                       <div className="flex gap-2 mt-2">
                                         <Button
                                           onClick={() => {
@@ -785,7 +782,7 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                         </Card>
                       )}
 
-                      {/* Final Actions (copy/reset) located again for convenience */}
+                      {/* Final Actions */}
                       <div className="flex flex-col sm:flex-row gap-3 pt-4">
                         <Button
                           onClick={() => {
@@ -802,7 +799,6 @@ Analyzed with: ${result?.provider ?? "Gemini 3D"}
                           <RefreshCw className="mr-2 h-5 w-5" /> Analyze Another Image
                         </Button>
                       </div>
-
                     </>
                   )}
                 </div>
