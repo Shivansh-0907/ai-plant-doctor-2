@@ -281,83 +281,62 @@ export default function StandardAnalyzerPage() {
         </Card>
 
         {/* Upload Section */}
-        {!selectedImage ? (
-          <Card className="border-2 border-dashed border-green-200 dark:border-green-800 hover:border-green-400 transition-colors">
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center justify-center space-y-4 py-12">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg">
-                  <Upload className="h-10 w-10 text-white" />
-                </div>
-                <div className="text-center space-y-2">
-                  <h3 className="text-xl font-semibold">Upload Plant Image</h3>
-                  <p className="text-sm text-muted-foreground">
-                    PNG, JPG or JPEG (max. 10MB)
-                  </p>
-                </div>
+{!selectedImage ? (
+  <Card className="border-2 border-dashed border-green-200 dark:border-green-800 hover:border-green-400 transition-colors">
+    <CardContent className="pt-6">
+      <div className="flex flex-col items-center justify-center space-y-4 py-12">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg">
+          <Upload className="h-10 w-10 text-white" />
+        </div>
+        <div className="text-center space-y-2">
+          <h3 className="text-xl font-semibold">Upload Plant Image</h3>
+          <p className="text-sm text-muted-foreground">
+            PNG, JPG or JPEG (max. 10MB)
+          </p>
+        </div>
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleCameraCapture}
-                  className="hidden"
-                  id="camera-capture"
-                />
+        {/* Hidden Inputs */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageSelect}
+          className="hidden"
+          id="file-upload"
+        />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleCameraCapture}
+          className="hidden"
+          id="camera-capture"
+        />
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
-                  <label htmlFor="file-upload" className="flex-1">
-                    <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
-                      <ImageIcon className="mr-2 h-5 w-5" />
-                      Choose File
-                    </Button>
-                  </label>
-                  <label htmlFor="camera-capture" className="flex-1">
-                    <Button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700">
-                      <Camera className="mr-2 h-5 w-5" />
-                      Take Photo
-                    </Button>
-                  </label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <div>
-                <CardTitle>Selected Image</CardTitle>
-                <CardDescription className="flex items-center gap-2">
-                  Using:
-                  <Badge className={providerInfo[aiProvider].color}>
-                    {providerInfo[aiProvider].name}
-                  </Badge>
-                </CardDescription>
-              </div>
-              <Button variant="ghost" size="icon" onClick={handleReset}>
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted">
-                <Image
-                  src={selectedImage}
-                  alt="Selected plant"
-                  fill
-                  className="object-contain"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+          >
+            <ImageIcon className="mr-2 h-5 w-5" />
+            Choose File
+          </Button>
+          <Button
+            onClick={() => cameraInputRef.current?.click()}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+          >
+            <Camera className="mr-2 h-5 w-5" />
+            Take Photo
+          </Button>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+) : (
+  ...
+)}
+
 
         {/* Analyze Button */}
         {selectedImage && !result && !error && (
