@@ -191,8 +191,8 @@ export default function StandardAnalyzerPage() {
     setSelectedImage(null);
     setResult(null);
     setError(null);
-    fileInputRef.current && (fileInputRef.current.value = "");
-    cameraInputRef.current && (cameraInputRef.current.value = "");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
   const getSeverityColor = (severity: string) => {
@@ -256,7 +256,7 @@ export default function StandardAnalyzerPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              Select AI model
+              Select AI Model
             </CardTitle>
             <CardDescription>
               Choose the AI model that best fits your needs
@@ -268,7 +268,7 @@ export default function StandardAnalyzerPage() {
               onValueChange={(value) => setAiProvider(value as AIProvider)}
             >
               <SelectTrigger className="w-full border-2 hover:border-blue-400 transition-all">
-                <SelectValue />
+                <SelectValue placeholder="Choose AI Provider" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(providerInfo).map(([key, info]) => (
@@ -281,7 +281,7 @@ export default function StandardAnalyzerPage() {
           </CardContent>
         </Card>
 
-        {/* Hidden inputs - always mounted */}
+        {/* Hidden Inputs */}
         <input
           ref={fileInputRef}
           type="file"
@@ -482,6 +482,13 @@ export default function StandardAnalyzerPage() {
           </div>
         )}
 
-        {/* Error */}
+        {/* Error Section */}
         {error && (
-          <
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+    </div>
+  );
+}
