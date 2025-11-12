@@ -14,9 +14,6 @@ import {
   AlertCircle,
   Pill,
   BookOpen,
-  Heart,
-  TrendingUp,
-  Shield,
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -159,7 +156,9 @@ export default function StandardAnalyzerPage() {
           setRateLimitInfo({ provider: providerName, message: errorMessage });
           toast.dismiss(loadingToast);
           toast.error("⏱️ Rate Limit Reached", {
-            description: `${providerName} limit exceeded. Try ${suggestedProviders.join(" or ")}!`,
+            description: `${providerName} limit exceeded. Try ${suggestedProviders.join(
+              " or "
+            )}!`,
             duration: 8000,
           });
         } else {
@@ -173,7 +172,9 @@ export default function StandardAnalyzerPage() {
       setResult(data);
       toast.dismiss(loadingToast);
       toast.success(`✅ ${providerName} analysis complete!`, {
-        description: `${data.primaryDisease} detected with ${data.confidence.toFixed(1)}% confidence`,
+        description: `${data.primaryDisease} detected with ${data.confidence.toFixed(
+          1
+        )}% confidence`,
       });
     } catch (err) {
       console.error("Analysis error:", err);
@@ -280,29 +281,13 @@ export default function StandardAnalyzerPage() {
           </CardContent>
         </Card>
 
-        {/* Upload Section */}
-{!selectedImage ? (
-  <Card className="border-2 border-dashed border-green-200 dark:border-green-800 hover:border-green-400 transition-colors">
-    <CardContent className="pt-6">
-      <div className="flex flex-col items-center justify-center space-y-4 py-12">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg">
-          <Upload className="h-10 w-10 text-white" />
-        </div>
-        <div className="text-center space-y-2">
-          <h3 className="text-xl font-semibold">Upload Plant Image</h3>
-          <p className="text-sm text-muted-foreground">
-            PNG, JPG or JPEG (max. 10MB)
-          </p>
-        </div>
-
-        {/* Hidden Inputs */}
+        {/* Hidden inputs - always mounted */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
           onChange={handleImageSelect}
           className="hidden"
-          id="file-upload"
         />
         <input
           ref={cameraInputRef}
@@ -311,32 +296,63 @@ export default function StandardAnalyzerPage() {
           capture="environment"
           onChange={handleCameraCapture}
           className="hidden"
-          id="camera-capture"
         />
 
-        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-          >
-            <ImageIcon className="mr-2 h-5 w-5" />
-            Choose File
-          </Button>
-          <Button
-            onClick={() => cameraInputRef.current?.click()}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
-          >
-            <Camera className="mr-2 h-5 w-5" />
-            Take Photo
-          </Button>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-) : (
-  ...
-)}
+        {/* Upload Section */}
+        {!selectedImage ? (
+          <Card className="border-2 border-dashed border-green-200 dark:border-green-800 hover:border-green-400 transition-colors">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center space-y-4 py-12">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg">
+                  <Upload className="h-10 w-10 text-white" />
+                </div>
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-semibold">Upload Plant Image</h3>
+                  <p className="text-sm text-muted-foreground">
+                    PNG, JPG or JPEG (max. 10MB)
+                  </p>
+                </div>
 
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                  >
+                    <ImageIcon className="mr-2 h-5 w-5" />
+                    Choose File
+                  </Button>
+                  <Button
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                  >
+                    <Camera className="mr-2 h-5 w-5" />
+                    Take Photo
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="overflow-hidden border-2 border-green-200 dark:border-green-800">
+            <CardContent className="p-4 flex flex-col items-center space-y-4">
+              <div className="relative w-full max-w-md aspect-video">
+                <Image
+                  src={selectedImage}
+                  alt="Selected leaf"
+                  fill
+                  className="object-cover rounded-xl border"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                className="flex items-center gap-2 border-2"
+              >
+                <X className="h-4 w-4" /> Remove Image
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Analyze Button */}
         {selectedImage && !result && !error && (
@@ -389,7 +405,8 @@ export default function StandardAnalyzerPage() {
 
                 <div>
                   <p className="font-medium mb-2">
-                    Health Status: {getHealthStatusMessage(result.healthPercentage)}
+                    Health Status:{" "}
+                    {getHealthStatusMessage(result.healthPercentage)}
                   </p>
                   <Progress value={result.healthPercentage} className="h-3" />
                 </div>
@@ -467,11 +484,4 @@ export default function StandardAnalyzerPage() {
 
         {/* Error */}
         {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-      </div>
-    </div>
-  );
-}
+          <
