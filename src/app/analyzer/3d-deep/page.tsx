@@ -74,44 +74,63 @@ export default function DeepAnalyzer3DPage() {
     }
   };
 
-  const handleAnalyze = async () => {
+    const handleAnalyze = async () => {
     if (!selectedImage) return;
 
     setIsAnalyzing(true);
     setError(null);
-    const loadingToast = toast.loading("Deep analyzing with enhanced AI...");
-    
-    try {
-      // Use Gemini for deep analysis (most accurate)
-      const response = await fetch("/api/analyze-gemini", {
+    const loadingToast = toast.loading("Deep analyzing with default AI (Groq) — falling back to Gemini if needed...");
+
+    // helper to call an endpoint and return JSON (or throw)
+    const callAnalyzer = async (endpoint: string) => {
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: selectedImage }),
       });
+      const json = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, json };
+    };
 
-      const data = await response.json();
+    try {
+      // 1) Try Groq first (default)
+      let groq = await callAnalyzer("/api/analyze-groq");
 
-      if (!response.ok) {
-        const errorMessage = data.error || "Analysis failed";
-        setError(errorMessage);
+      if (groq.ok && groq.json) {
+        setResult(groq.json);
         toast.dismiss(loadingToast);
-        toast.error("Deep Analysis Error", {
-          description: errorMessage,
-          duration: 10000
+        toast.success("✅ Analysis complete (Groq)", {
+          description: `${groq.json.primaryDisease ?? "Unknown"} detected - ${groq.json.healthPercentage ?? "N/A"}% healthy tissue`,
         });
+        setIsAnalyzing(false);
         return;
       }
 
-      setResult(data);
+      // If Groq failed (non-ok) — try Gemini automatically
+      // include groq error info for debugging
+      const groqErrMsg = (groq.json && (groq.json.error || groq.json.message)) || `Groq failed (status ${groq.status})`;
+
+      // 2) Fallback to Gemini
+      const gemini = await callAnalyzer("/api/analyze-gemini");
+      if (gemini.ok && gemini.json) {
+        setResult(gemini.json);
+        toast.dismiss(loadingToast);
+        toast.success("✅ Analysis complete (Gemini fallback)", {
+          description: `${gemini.json.primaryDisease ?? "Unknown"} detected - ${gemini.json.healthPercentage ?? "N/A"}% healthy tissue`,
+        });
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // If both failed, show error with helpful info
+      const gemErrMsg = (gemini.json && (gemini.json.error || gemini.json.message)) || `Gemini failed (status ${gemini.status})`;
+      const combined = `${groqErrMsg}; fallback Gemini error: ${gemErrMsg}`;
+      setError(combined);
       toast.dismiss(loadingToast);
-      toast.success("✅ 3D Deep analysis complete!", {
-        description: `${data.primaryDisease} detected - ${data.healthPercentage}% healthy tissue`,
-      });
-    } catch (error) {
-      console.error("Analysis error:", error);
-      const errorMsg = "Failed to connect to AI service. Check console for details.";
+      toast.error("Deep Analysis Error", { description: combined, duration: 15000 });
+    } catch (err) {
+      console.error("Analysis error:", err);
+      const errorMsg = typeof err === "string" ? err : "Failed to connect to AI services. Check console for details.";
       setError(errorMsg);
       toast.dismiss(loadingToast);
       toast.error(errorMsg);
