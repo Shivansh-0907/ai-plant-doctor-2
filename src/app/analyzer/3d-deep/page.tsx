@@ -140,45 +140,49 @@ export default function DeepAnalyzer3DPage() {
     }
 
     // 🧠 Continue with Groq → fallback to Gemini
-    const loadingToast = toast.loading(
-      "Analyzing image with Groq AI — switching to Gemini if needed..."
-    );
+const loadingToast = toast.loading(
+  "Analyzing image using Groq AI — will switch to Gemini if needed..."
+);
 
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage, provider: aiProvider }),
-      });
+try {
+  // --- Groq as default ---
+  let res = await fetch("/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: selectedImage, provider: "groq" }),
+  });
 
-      if (!res.ok) throw new Error("Groq failed, retrying with Gemini...");
+  if (!res.ok) throw new Error("Groq failed — trying Gemini...");
 
-      const data = await res.json();
-      setResult(data);
-      toast.success("✅ Analysis completed successfully!");
-    } catch (err) {
-      console.warn("Groq failed, trying Gemini...");
+  const data = await res.json();
+  setResult(data);
+  toast.success("✅ Analysis completed successfully with Groq!");
+} catch (err) {
+  console.warn("Groq failed, switching to Gemini...");
 
-      // fallback to Gemini
-      try {
-        const res2 = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: selectedImage, provider: "gemini" }),
-        });
+  try {
+    // --- Gemini fallback ---
+    const res2 = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: selectedImage, provider: "gemini" }),
+    });
 
-        const data2 = await res2.json();
-        setResult(data2);
-        toast.success("✅ Gemini completed the analysis!");
-      } catch (err2) {
-        console.error("Both AI providers failed:", err2);
-        setError("Analysis failed. Please try again later.");
-        toast.error("❌ Analysis failed with both providers.");
-      }
-    } finally {
-      toast.dismiss(loadingToast);
-      setIsAnalyzing(false);
-    }
+    if (!res2.ok) throw new Error("Gemini failed");
+
+    const data2 = await res2.json();
+    setResult(data2);
+    toast.success("✅ Gemini completed the analysis!");
+  } catch (err2) {
+    console.error("Both AI providers failed:", err2);
+    setError("Analysis failed. Please try again later.");
+    toast.error("❌ Both AI providers failed. Try again later.");
+  }
+} finally {
+  toast.dismiss(loadingToast);
+  setIsAnalyzing(false);
+}
+
   };
 
   const handleReset = () => {
