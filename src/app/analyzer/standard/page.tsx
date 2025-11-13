@@ -90,91 +90,111 @@ export default function StandardAnalyzerPage() {
     reader.readAsDataURL(file);
   };
 
-  // ---------- Analysis (Groq default -> Gemini fallback) ----------
-  const handleAnalyze = async () => {
-    if (!selectedImage) {
-      toast.error("Please upload or capture a plant image first.");
-      return;
-    }
+  // ---------- Analysis (Groq default -> Gemini fallback + AI Enhance) ----------
+const handleAnalyze = async () => {
+  if (!selectedImage) {
+    toast.error("Please upload or capture a plant image first.");
+    return;
+  }
 
-    setIsAnalyzing(true);
-    setError(null);
-    toast.loading("Analyzing with Groq...");
+  setIsAnalyzing(true);
+  setError(null);
+  toast.loading("Analyzing with Groq...");
 
-    try {
-      let response = await fetch("/api/analyze-groq", {
+  try {
+    let response = await fetch("/api/analyze-groq", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: selectedImage }),
+    });
+
+    // fallback to Gemini if Groq fails
+    if (!response.ok) {
+      toast.message("Groq failed, switching to Gemini...");
+      response = await fetch("/api/analyze-gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: selectedImage }),
       });
-
-      // fallback to Gemini if Groq fails
-      if (!response.ok) {
-        toast.message("Groq failed, switching to Gemini...");
-        response = await fetch("/api/analyze-gemini", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: selectedImage }),
-        });
-      }
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Analysis failed");
-      }
-
-      // Normalize backend response safely with defaults
-      const normalized: AnalysisResult = {
-        healthPercentage:
-          typeof data.healthPercentage === "number"
-            ? Math.max(0, Math.min(100, data.healthPercentage))
-            : 72,
-        possibleDiseases: Array.isArray(data.possibleDiseases)
-          ? data.possibleDiseases
-          : [],
-        causes: Array.isArray(data.causes)
-          ? data.causes
-          : [
-              {
-                disease: "Nutrient Imbalance",
-                explanation:
-                  "Likely nutrient imbalance (nitrogen/magnesium) causing discoloration.",
-              },
-            ],
-        careTips: Array.isArray(data.careTips)
-          ? data.careTips
-          : [
-              "Prune affected leaves to slow spread.",
-              "Apply mild organic treatments if fungal disease is suspected.",
-              "Adjust watering frequency; check soil moisture.",
-            ],
-        generalTips: Array.isArray(data.generalTips)
-          ? data.generalTips
-          : [
-              "4–6 hours of indirect sunlight daily.",
-              "Avoid overhead watering during hot hours.",
-              "Sanitize tools before pruning.",
-            ],
-        symptoms: Array.isArray(data.symptoms)
-          ? data.symptoms
-          : ["Discoloration", "Spots", "Wilting"],
-        aiConclusion:
-          typeof data.aiConclusion === "string"
-            ? data.aiConclusion
-            : "Analysis suggests early-stage stress; follow recommended actions for recovery.",
-      };
-
-      setResult(normalized);
-      toast.success("✅ Analysis complete!");
-    } catch (err: any) {
-      console.error("Analysis error:", err);
-      setError("Both AI models failed or returned an error. Try again later.");
-      toast.error("Analysis failed. Try again later.");
-    } finally {
-      toast.dismiss();
-      setIsAnalyzing(false);
     }
-  };
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error || "Analysis failed");
+
+    // ---------- AI ENHANCEMENT CHECK ----------
+    // If AI says it's not a leaf, or looks artificial/cartoon-like, show a "No Leaf Found" message
+    const lowerText = JSON.stringify(data).toLowerCase();
+    const invalidPatterns = [
+      "no leaf found",
+      "not a leaf",
+      "artificial",
+      "plastic",
+      "cartoon",
+      "toy",
+      "drawing",
+      "fake",
+    ];
+
+    if (invalidPatterns.some((p) => lowerText.includes(p))) {
+      setResult(null);
+      setError("❌ No Leaf Found! Please upload a clear, natural leaf image.");
+      toast.error("No Leaf Found! Try with a real plant image.");
+      return;
+    }
+
+    // ---------- Normalize backend response ----------
+    const normalized: AnalysisResult = {
+      healthPercentage:
+        typeof data.healthPercentage === "number"
+          ? Math.max(0, Math.min(100, data.healthPercentage))
+          : 72,
+      possibleDiseases: Array.isArray(data.possibleDiseases)
+        ? data.possibleDiseases
+        : [],
+      causes: Array.isArray(data.causes)
+        ? data.causes
+        : [
+            {
+              disease: "Nutrient Imbalance",
+              explanation:
+                "Likely nutrient imbalance (nitrogen/magnesium) causing discoloration.",
+            },
+          ],
+      careTips: Array.isArray(data.careTips)
+        ? data.careTips
+        : [
+            "Prune affected leaves to slow spread.",
+            "Apply mild organic treatments if fungal disease is suspected.",
+            "Adjust watering frequency; check soil moisture.",
+          ],
+      generalTips: Array.isArray(data.generalTips)
+        ? data.generalTips
+        : [
+            "4–6 hours of indirect sunlight daily.",
+            "Avoid overhead watering during hot hours.",
+            "Sanitize tools before pruning.",
+          ],
+      symptoms: Array.isArray(data.symptoms)
+        ? data.symptoms
+        : ["Discoloration", "Spots", "Wilting"],
+      aiConclusion:
+        typeof data.aiConclusion === "string"
+          ? data.aiConclusion
+          : "Analysis suggests early-stage stress; follow recommended actions for recovery.",
+    };
+
+    setResult(normalized);
+    toast.success("✅ Analysis complete!");
+  } catch (err: any) {
+    console.error("Analysis error:", err);
+    setError("Both AI models failed or returned an error. Try again later.");
+    toast.error("Analysis failed. Try again later.");
+  } finally {
+    toast.dismiss();
+    setIsAnalyzing(false);
+  }
+};
+
 
   const handleReset = () => {
     setSelectedImage(null);
