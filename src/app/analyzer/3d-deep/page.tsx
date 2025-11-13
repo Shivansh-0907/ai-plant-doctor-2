@@ -74,67 +74,109 @@ export default function DeepAnalyzer3DPage() {
     }
   };
 
-    const handleAnalyze = async () => {
-    if (!selectedImage) return;
+    // --- 🔍 Step 1: Verify Leaf Authenticity ---
+  const verifyLeafAuthenticity = async (imageBase64: string) => {
+    try {
+      const res = await fetch("/api/verify-leaf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageBase64 }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Leaf verification failed");
+
+      if (!data.isLeaf || data.isFake) {
+        return {
+          valid: false,
+          reason: data.isFake ? "Artificial or fake leaf detected" : "No real leaf found",
+        };
+      }
+
+      return { valid: true, confidence: data.confidence };
+    } catch (err) {
+      console.error("Leaf verification error:", err);
+      return { valid: true }; // Continue analysis if verification fails
+    }
+  };
+
+  // --- 🌿 Step 2: Main Analyzer ---
+  const handleAnalyze = async () => {
+    if (!selectedImage) {
+      toast.error("Please upload an image first!");
+      return;
+    }
 
     setIsAnalyzing(true);
     setError(null);
-    const loadingToast = toast.loading("Deep analyzing with default AI (Groq) — falling back to Gemini if needed...");
+    toast.dismiss();
 
-    // helper to call an endpoint and return JSON (or throw)
-    const callAnalyzer = async (endpoint: string) => {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: selectedImage }),
+    // ✅ Verify authenticity first
+    const verifyingToast = toast.loading("Verifying image authenticity...");
+    const verification = await verifyLeafAuthenticity(selectedImage);
+    toast.dismiss(verifyingToast);
+
+    if (!verification.valid) {
+      setResult({
+        noLeafDetected: true,
+        stage: 0,
+        damageType: "N/A",
+        healthPercentage: 0,
+        category: "Invalid Image",
+        primaryDisease: "No Leaf Detected!",
+        confidence: 0,
+        severity: "none",
+        description: verification.reason,
+        careTips: [
+          "Ensure the photo clearly shows a real plant leaf.",
+          "Avoid using cartoon, plastic, or artificial images.",
+          "Capture the image in good natural lighting.",
+        ],
+        symptoms: [],
       });
-      const json = await res.json().catch(() => ({}));
-      return { ok: res.ok, status: res.status, json };
-    };
+      setIsAnalyzing(false);
+      toast.error("⚠️ " + verification.reason);
+      return;
+    }
+
+    // 🧠 Continue with Groq → fallback to Gemini
+    const loadingToast = toast.loading(
+      "Analyzing image with Groq AI — switching to Gemini if needed..."
+    );
 
     try {
-      // 1) Try Groq first (default)
-      let groq = await callAnalyzer("/api/analyze-groq");
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: selectedImage, provider: aiProvider }),
+      });
 
-      if (groq.ok && groq.json) {
-        setResult(groq.json);
-        toast.dismiss(loadingToast);
-        toast.success("✅ Analysis complete (Groq)", {
-          description: `${groq.json.primaryDisease ?? "Unknown"} detected - ${groq.json.healthPercentage ?? "N/A"}% healthy tissue`,
-        });
-        setIsAnalyzing(false);
-        return;
-      }
+      if (!res.ok) throw new Error("Groq failed, retrying with Gemini...");
 
-      // If Groq failed (non-ok) — try Gemini automatically
-      // include groq error info for debugging
-      const groqErrMsg = (groq.json && (groq.json.error || groq.json.message)) || `Groq failed (status ${groq.status})`;
-
-      // 2) Fallback to Gemini
-      const gemini = await callAnalyzer("/api/analyze-gemini");
-      if (gemini.ok && gemini.json) {
-        setResult(gemini.json);
-        toast.dismiss(loadingToast);
-        toast.success("✅ Analysis complete (Gemini fallback)", {
-          description: `${gemini.json.primaryDisease ?? "Unknown"} detected - ${gemini.json.healthPercentage ?? "N/A"}% healthy tissue`,
-        });
-        setIsAnalyzing(false);
-        return;
-      }
-
-      // If both failed, show error with helpful info
-      const gemErrMsg = (gemini.json && (gemini.json.error || gemini.json.message)) || `Gemini failed (status ${gemini.status})`;
-      const combined = `${groqErrMsg}; fallback Gemini error: ${gemErrMsg}`;
-      setError(combined);
-      toast.dismiss(loadingToast);
-      toast.error("Deep Analysis Error", { description: combined, duration: 15000 });
+      const data = await res.json();
+      setResult(data);
+      toast.success("✅ Analysis completed successfully!");
     } catch (err) {
-      console.error("Analysis error:", err);
-      const errorMsg = typeof err === "string" ? err : "Failed to connect to AI services. Check console for details.";
-      setError(errorMsg);
-      toast.dismiss(loadingToast);
-      toast.error(errorMsg);
+      console.warn("Groq failed, trying Gemini...");
+
+      // fallback to Gemini
+      try {
+        const res2 = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: selectedImage, provider: "gemini" }),
+        });
+
+        const data2 = await res2.json();
+        setResult(data2);
+        toast.success("✅ Gemini completed the analysis!");
+      } catch (err2) {
+        console.error("Both AI providers failed:", err2);
+        setError("Analysis failed. Please try again later.");
+        toast.error("❌ Analysis failed with both providers.");
+      }
     } finally {
+      toast.dismiss(loadingToast);
       setIsAnalyzing(false);
     }
   };
