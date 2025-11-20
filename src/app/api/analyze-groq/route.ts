@@ -41,7 +41,6 @@ If a real leaf exists, return:
 }
 `;
 
-    // ✅ GROQ Vision correct format (different from OpenAI)
     const groqResponse = await groq.chat.completions.create({
       model: "llama-3.2-90b-vision-preview",
       temperature: 0.2,
@@ -52,11 +51,9 @@ If a real leaf exists, return:
           content: [
             { type: "text", text: "Analyze this plant leaf and return JSON." },
             {
-              type: "image_url",
-              image_url: {
-                url: image, // BASE64 or hosted URL
-              },
-            },
+              type: "input_image",       // ✅ CORRECT
+              image_url: image,          // ✅ MUST be base64 or public URL
+            }
           ],
         },
       ],
@@ -64,7 +61,6 @@ If a real leaf exists, return:
 
     const aiText = groqResponse.choices?.[0]?.message?.content || "{}";
 
-    // JSON extraction
     let json;
     try {
       const match = aiText.match(/\{[\s\S]*\}/);
