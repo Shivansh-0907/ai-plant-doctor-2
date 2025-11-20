@@ -1,49 +1,45 @@
-import { NextRequest, NextResponse } from "next/server";
-import { analyzeImageGroq } from "@/lib/vision-groq";
+import { NextResponse } from "next/server";
+import Groq from "groq-sdk";
 
-export async function POST(request: NextRequest) {
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+export async function POST(req: Request) {
   try {
-    const { image } = await request.json();
+    const { image } = await req.json();
 
     if (!image) {
-      return NextResponse.json({ error: "No image provided" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No image provided" },
+        { status: 400 }
+      );
     }
 
-    console.log("🔍 Analyzing with Groq (Llama 4 Scout 17B Vision)...");
+    // Send to Groq Vision
+    const groqResponse = await groq.chat.completions.create({
+      model: "llama-3.2-90b-vision-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: "Analyze this plant leaf." },
+            { type: "input_image", image_url: image },
+          ]
+        }
+      ],
+      temperature: 0.3,
+    });
 
-    const result = await analyzeImageGroq(image);
-
-    console.log("✅ Groq analysis complete:", result.primaryDisease);
+    const text = groqResponse.choices?.[0]?.message?.content || "No response";
 
     return NextResponse.json({
-      ...result,
-      provider: "groq-llama-4-scout-17b",
-      cost: "FREE trial + ultra-fast inference"
+      provider: "groq",
+      result: text,
     });
-  } catch (error: any) {
-    console.error("❌ Groq API Error:", error);
-    
-    const isRateLimit = error.message?.includes("rate_limit") || 
-                        error.message?.includes("quota") ||
-                        error.message?.includes("429") ||
-                        error.message?.includes("RESOURCE_EXHAUSTED");
-    
-    let userMessage = "Groq analysis failed.";
-    if (error.message.includes("API_KEY") || error.message.includes("401")) {
-      userMessage = "❌ Groq API key not configured. Get free trial at https://console.groq.com/keys";
-    } else if (isRateLimit) {
-      userMessage = "⏱️ Groq rate limit exceeded (500K tokens/min on free tier). Please wait a moment or try another provider.";
-    }
-
+  } catch (err) {
+    console.error("Groq API Error:", err);
     return NextResponse.json(
-      { 
-        error: userMessage, 
-        details: error.message,
-        setupGuide: "Add GROQ_API_KEY to .env file",
-        isRateLimit: isRateLimit,
-        suggestedProviders: isRateLimit ? ["Google Gemini", "Together AI"] : []
-      },
-      { status: isRateLimit ? 429 : 500 }
+      { error: "Groq analysis failed" },
+      { status: 500 }
     );
   }
 }
