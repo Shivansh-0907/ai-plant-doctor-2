@@ -6,26 +6,21 @@ export async function POST(req: NextRequest) {
     const { image } = await req.json();
 
     if (!image) {
-      return NextResponse.json(
-        { error: "No image provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json(
-        { error: "Missing GROQ_API_KEY in .env" },
+        { error: "Missing GROQ_API_KEY in environment variables" },
         { status: 500 }
       );
     }
 
-    const groq = new Groq({
-      apiKey: process.env.GROQ_API_KEY,
-    });
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
     const SYSTEM_PROMPT = `
 You are an expert plant disease analysis system.
-Return ONLY JSON. No markdown. No explanation.
+Return ONLY JSON, no markdown.
 
 If no real leaf is detected, return:
 {
@@ -46,22 +41,21 @@ If a real leaf exists, return:
 }
 `;
 
-    // ✅ CORRECT GROQ VISION FORMAT
+    // ✅ GROQ Vision correct format (different from OpenAI)
     const groqResponse = await groq.chat.completions.create({
       model: "llama-3.2-90b-vision-preview",
       temperature: 0.2,
       messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT,
-        },
+        { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: [
             { type: "text", text: "Analyze this plant leaf and return JSON." },
             {
-              type: "input_image", // IMPORTANT!!!
-              image_url: image,    // this is correct for Groq vision
+              type: "image_url",
+              image_url: {
+                url: image, // BASE64 or hosted URL
+              },
             },
           ],
         },
@@ -70,14 +64,13 @@ If a real leaf exists, return:
 
     const aiText = groqResponse.choices?.[0]?.message?.content || "{}";
 
-    // Extract JSON safely
+    // JSON extraction
     let json;
     try {
       const match = aiText.match(/\{[\s\S]*\}/);
       json = match ? JSON.parse(match[0]) : JSON.parse(aiText);
     } catch (err) {
-      console.error("JSON Parse Error → Raw:", aiText);
-
+      console.error("JSON parse error: ", aiText);
       return NextResponse.json({
         provider: "groq",
         result: {
@@ -90,14 +83,9 @@ If a real leaf exists, return:
       });
     }
 
-    return NextResponse.json({
-      provider: "groq",
-      result: json,
-    });
-
+    return NextResponse.json({ provider: "groq", result: json });
   } catch (error) {
-    console.error("🔥 Groq API Error:", error);
-
+    console.error("🔥 Server error:", error);
     return NextResponse.json(
       {
         provider: "groq",
