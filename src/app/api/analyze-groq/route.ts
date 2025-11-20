@@ -1,14 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-// 🔍 Utility: Extract clean text 
-function clean(text: string) {
-  return text.replace(/```json|```/g, "").trim();
-}
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const { image } = await req.json();
 
@@ -19,20 +12,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🧠 PROMPT FOR ACCURATE STRUCTURED ANALYSIS
-    const prompt = `
-You are an expert plant pathologist. Analyze the leaf image and return STRICT JSON ONLY.
+    if (!process.env.GROQ_API_KEY) {
+      return NextResponse.json(
+        { error: "Missing GROQ_API_KEY in .env" },
+        { status: 500 }
+      );
+    }
 
-Detect:
-- Whether a real leaf exists (not plastic, cartoon, fake, or object)
-- Whether the leaf is healthy or diseased
-- Disease name if present
-- Causes
-- Recommended actions
-- Overall health percentage (0–100)
+    const groq = new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    });
 
-### VERY IMPORTANT:
-If NO REAL LEAF is detected → return:
+    const SYSTEM_PROMPT = `
+You are an expert plant disease analysis system.
+Return ONLY JSON. No markdown. No explanation.
+
+If no real leaf is detected, return:
 {
   "leafFound": false,
   "health": 0,
@@ -41,42 +36,48 @@ If NO REAL LEAF is detected → return:
   "tips": []
 }
 
-### Otherwise:
-Return:
+If a real leaf exists, return:
 {
   "leafFound": true,
   "health": number,
-  "diseases": [".."],
-  "causes": [".."],
-  "tips": [".."]
+  "diseases": [string],
+  "causes": [string],
+  "tips": [string]
 }
-
-ONLY return JSON. No explanation.
 `;
 
-    // 🟢 GROQ VISION REQUEST (correct format!)
+    // ✅ CORRECT GROQ VISION FORMAT
     const groqResponse = await groq.chat.completions.create({
       model: "llama-3.2-90b-vision-preview",
       temperature: 0.2,
       messages: [
         {
+          role: "system",
+          content: SYSTEM_PROMPT,
+        },
+        {
           role: "user",
           content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: image }
-          ]
-        }
+            { type: "text", text: "Analyze this plant leaf and return JSON." },
+            {
+              type: "input_image", // IMPORTANT!!!
+              image_url: image,    // this is correct for Groq vision
+            },
+          ],
+        },
       ],
     });
 
-    const raw = groqResponse.choices?.[0]?.message?.content || "{}";
-    const text = clean(raw);
+    const aiText = groqResponse.choices?.[0]?.message?.content || "{}";
 
-    let jsonResult;
+    // Extract JSON safely
+    let json;
     try {
-      jsonResult = JSON.parse(text);
-    } catch (e) {
-      console.log("JSON Parse Error → raw output:", raw);
+      const match = aiText.match(/\{[\s\S]*\}/);
+      json = match ? JSON.parse(match[0]) : JSON.parse(aiText);
+    } catch (err) {
+      console.error("JSON Parse Error → Raw:", aiText);
+
       return NextResponse.json({
         provider: "groq",
         result: {
@@ -84,30 +85,29 @@ ONLY return JSON. No explanation.
           health: 0,
           diseases: [],
           causes: [],
-          tips: []
-        }
+          tips: [],
+        },
       });
     }
 
     return NextResponse.json({
       provider: "groq",
-      result: jsonResult,
+      result: json,
     });
 
   } catch (error) {
-    console.error("GROQ ERROR:", error);
+    console.error("🔥 Groq API Error:", error);
 
     return NextResponse.json(
       {
         provider: "groq",
-        error: "Groq analysis failed",
         result: {
           leafFound: false,
           health: 0,
           diseases: [],
           causes: [],
-          tips: []
-        }
+          tips: [],
+        },
       },
       { status: 500 }
     );
