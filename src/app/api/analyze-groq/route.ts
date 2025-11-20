@@ -51,8 +51,8 @@ If a real leaf exists, return:
           content: [
             { type: "text", text: "Analyze this plant leaf and return JSON." },
             {
-              type: "input_image",       // ✅ CORRECT
-              image_url: image,          // ✅ MUST be base64 or public URL
+              type: "input_image",
+              image_url: image,
             }
           ],
         },
