@@ -1,48 +1,118 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeImageGemini } from "@/lib/vision-gemini";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: NextRequest) {
   try {
     const { image } = await request.json();
 
     if (!image) {
-      return NextResponse.json({ error: "No image provided" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No image provided." },
+        { status: 400 }
+      );
     }
 
-    console.log("🔍 Analyzing with Google Gemini 2.0 Flash...");
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "GOOGLE_GENERATIVE_AI_API_KEY missing." },
+        { status: 500 }
+      );
+    }
 
-    const result = await analyzeImageGemini(image);
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    console.log("✅ Gemini analysis complete:", result.primaryDisease);
+    // 🧠 Same analysis logic as Groq
+    const prompt = `
+You are an expert plant pathologist.
+Analyze the leaf image and return STRICT JSON ONLY in the following format:
+
+{
+  "leafFound": boolean,
+  "health": number,
+  "diseases": [string],
+  "causes": [string],
+  "tips": [string]
+}
+
+RULES:
+- If no real leaf is found (plastic, cartoon, fake, background, object) → leafFound = false
+- Health must be between 0 and 100
+- Return diseases only if real disease is visible
+- Do NOT include extra text. Only JSON.
+`;
+
+    let resultText = "";
+
+    try {
+      const result = await model.generateContent([
+        { text: prompt },
+        {
+          inlineData: {
+            data: image.replace(/^data:image\/\w+;base64,/, ""),
+            mimeType: "image/png",
+          },
+        },
+      ]);
+
+      resultText = result.response.text().trim();
+    } catch (apiError: any) {
+      console.error("❌ Gemini API error:", apiError);
+
+      // Gemini quota fail → fallback output
+      return NextResponse.json({
+        provider: "gemini",
+        result: {
+          leafFound: false,
+          health: 0,
+          diseases: [],
+          causes: [],
+          tips: [],
+        },
+        error: apiError.message,
+      });
+    }
+
+    // Clean markdown formatting
+    resultText = resultText.replace(/```json|```/g, "").trim();
+
+    let jsonData;
+    try {
+      jsonData = JSON.parse(resultText);
+    } catch (e) {
+      console.error("❌ Gemini JSON parse error → Raw Output:", resultText);
+      jsonData = {
+        leafFound: false,
+        health: 0,
+        diseases: [],
+        causes: [],
+        tips: [],
+      };
+    }
 
     return NextResponse.json({
-      ...result,
-      provider: "gemini-2.0-flash",
-      cost: "FREE (15 img/min)"
+      provider: "gemini",
+      result: jsonData,
+      cost: "FREE",
     });
+
   } catch (error: any) {
-    console.error("❌ Gemini API Error:", error);
-    
-    const isRateLimit = error.message?.includes("quota") || 
-                        error.message?.includes("rate") || 
-                        error.message?.includes("RESOURCE_EXHAUSTED");
-    
-    let userMessage = "Gemini analysis failed.";
-    if (error.message.includes("API_KEY")) {
-      userMessage = "❌ Google Gemini API key not configured. Get free key at https://aistudio.google.com/apikey";
-    } else if (isRateLimit) {
-      userMessage = "⏱️ Gemini rate limit exceeded (15 images/min on free tier). Please wait a moment or try another provider.";
-    }
+    console.error("💥 Internal error (Gemini route):", error);
 
     return NextResponse.json(
-      { 
-        error: userMessage, 
-        details: error.message,
-        setupGuide: "Add GOOGLE_GENERATIVE_AI_API_KEY to .env file",
-        isRateLimit: isRateLimit,
-        suggestedProviders: isRateLimit ? ["Together AI", "Groq"] : []
+      {
+        provider: "gemini",
+        result: {
+          leafFound: false,
+          health: 0,
+          diseases: [],
+          causes: [],
+          tips: [],
+        },
+        error: error.message,
       },
-      { status: isRateLimit ? 429 : 500 }
+      { status: 500 }
     );
   }
 }
