@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
 export async function POST(req: NextRequest) {
+  console.log("🚀 API HIT: analyze-groq");
+
   try {
     const { image } = await req.json();
+
+    console.log("📸 Image received?", !!image);
 
     if (!image) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
+
+    console.log("🔑 Loaded GROQ_API_KEY:", process.env.GROQ_API_KEY ? "YES" : "NO");
 
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json(
@@ -19,10 +25,9 @@ export async function POST(req: NextRequest) {
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
     const SYSTEM_PROMPT = `
-You are an expert plant disease analysis system.
-Return ONLY JSON, no markdown.
+Return ONLY JSON.
 
-If no real leaf is detected, return:
+If no leaf:
 {
   "leafFound": false,
   "health": 0,
@@ -31,7 +36,7 @@ If no real leaf is detected, return:
   "tips": []
 }
 
-If a real leaf exists, return:
+If leaf:
 {
   "leafFound": true,
   "health": number,
@@ -40,6 +45,8 @@ If a real leaf exists, return:
   "tips": [string]
 }
 `;
+
+    console.log("📤 Sending request to Groq...");
 
     const groqResponse = await groq.chat.completions.create({
       model: "llama-3.2-90b-vision-preview",
@@ -53,11 +60,13 @@ If a real leaf exists, return:
             {
               type: "input_image",
               image_url: image,
-            }
+            },
           ],
         },
       ],
     });
+
+    console.log("📥 Raw Groq Response:", JSON.stringify(groqResponse, null, 2));
 
     const aiText = groqResponse.choices?.[0]?.message?.content || "{}";
 
@@ -66,7 +75,7 @@ If a real leaf exists, return:
       const match = aiText.match(/\{[\s\S]*\}/);
       json = match ? JSON.parse(match[0]) : JSON.parse(aiText);
     } catch (err) {
-      console.error("JSON parse error: ", aiText);
+      console.log("❌ JSON Parse Error → RAW AI Text:", aiText);
       return NextResponse.json({
         provider: "groq",
         result: {
@@ -80,18 +89,15 @@ If a real leaf exists, return:
     }
 
     return NextResponse.json({ provider: "groq", result: json });
-  } catch (error) {
-    console.error("🔥 Server error:", error);
+
+  } catch (error: any) {
+    console.error("🔥 FULL GROQ ERROR:", error);
+
     return NextResponse.json(
       {
         provider: "groq",
-        result: {
-          leafFound: false,
-          health: 0,
-          diseases: [],
-          causes: [],
-          tips: [],
-        },
+        error: error.message || "Unknown server error",
+        stack: error.stack || null,
       },
       { status: 500 }
     );
