@@ -376,7 +376,7 @@ export async function analyzeImageGemini(base64Image: string) {
 
   const client = new GoogleGenerativeAI(apiKey);
   const model = client.getGenerativeModel({ 
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-1.5-flash-latest",
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: 2000,
